@@ -1,154 +1,346 @@
-const API = '/api/vegetables';
-const CATEGORIES = {
-  Leafy: '#2f7d46', Root: '#c8641f', Fruiting: '#c0392b',
-  Cruciferous: '#6f9a2a', Allium: '#8e5ba8', Legume: '#b08a1e',
-};
-const LOW_STOCK = 10;   // items at or below this many kg get a "Low" tag
 
-let items = [];
+const CATEGORIES = {
+  Leafy: '#2f7d46',
+  Root: '#c8641f',
+  Fruiting: '#c0392b',
+  Cruciferous: '#6f9a2a',
+  Allium: '#8e5ba8',
+  Legume: '#b08a1e'
+};
+
+const LOW_STOCK = 10;
+const STORAGE_KEY = 'vegetable-dashboard-items';
+
+const DEFAULT_ITEMS = [
+  { id: 1, name: 'Spinach', category: 'Leafy', price: 3.8, quantity: 24 },
+  { id: 2, name: 'Carrot', category: 'Root', price: 1.6, quantity: 60 },
+  { id: 3, name: 'Tomato', category: 'Fruiting', price: 2.9, quantity: 8 },
+  { id: 4, name: 'Broccoli', category: 'Cruciferous', price: 3.2, quantity: 31 },
+  { id: 5, name: 'Red onion', category: 'Allium', price: 1.4, quantity: 45 },
+  { id: 6, name: 'Green beans', category: 'Legume', price: 4.1, quantity: 6 }
+];
+
+let items = readItems();
 let editingId = null;
 
-const $ = (s) => document.querySelector(s);
-const money = (n) => '$' + n.toFixed(2);
-const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
-  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const color = (cat) => CATEGORIES[cat] || '#8a948d';
+const $ = (selector) => document.querySelector(selector);
 
-// Small helper for talking to the backend
-async function api(url, opts = {}) {
-  const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
-  if (res.status === 204) return null;
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Something went wrong. Try again.');
-  return data;
+const money = (number) => '$' + Number(number).toFixed(2);
+
+const esc = (value) => String(value).replace(/[&<>"']/g, (character) =>
+  ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[character])
+);
+
+const color = (category) => CATEGORIES[category] || '#8a948d';
+
+// LOAD SAVED DATA
+function readItems() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+
+    if (saved === null) {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(DEFAULT_ITEMS)
+      );
+      return [...DEFAULT_ITEMS];
+    }
+
+    const parsed = JSON.parse(saved);
+
+    return Array.isArray(parsed) ? parsed : [...DEFAULT_ITEMS];
+
+  } catch (error) {
+    console.error(error);
+    return [...DEFAULT_ITEMS];
+  }
 }
 
-function toast(msg) {
+// SAVE DATA
+function saveItems() {
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(items)
+  );
+}
+
+// TOAST MESSAGE
+function toast(message) {
   const t = $('#toast');
-  t.textContent = msg;
+
+  t.textContent = message;
   t.classList.add('show');
+
   clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => t.classList.remove('show'), 2400);
+
+  toast.timer = setTimeout(() => {
+    t.classList.remove('show');
+  }, 2400);
 }
 
-// ----- Draw the page -----
+// DISPLAY DASHBOARD
 function render() {
-  // Summary strip and category bar use all items
-  const totalStock = items.reduce((s, v) => s + v.quantity, 0);
-  const value = items.reduce((s, v) => s + v.quantity * v.price, 0);
-  const low = items.filter((v) => v.quantity <= LOW_STOCK).length;
 
+  const totalStock = items.reduce(
+    (sum, v) => sum + Number(v.quantity), 0
+  );
+
+  const totalValue = items.reduce(
+    (sum, v) => sum + Number(v.quantity) * Number(v.price), 0
+  );
+
+  const lowStock = items.filter(
+    (v) => Number(v.quantity) <= LOW_STOCK
+  ).length;
+
+  // SUMMARY
   $('#stats').innerHTML = [
     ['Varieties', items.length],
     ['Total stock', totalStock + ' kg'],
-    ['Stock value', money(value)],
-    ['Running low', low],
-  ].map(([label, n]) => `<div><strong>${n}</strong><span>${label}</span></div>`).join('');
-
-  const byCat = {};
-  items.forEach((v) => { byCat[v.category] = (byCat[v.category] || 0) + v.quantity; });
-  const parts = Object.entries(byCat).filter(([, n]) => n > 0);
-
-  $('#bar').innerHTML = parts.map(([c, n]) =>
-    `<i style="width:${(n / totalStock) * 100}%;background:${color(c)}" title="${esc(c)}: ${n} kg"></i>`
-  ).join('');
-  $('#legend').innerHTML = parts.map(([c, n]) =>
-    `<li><span class="dot" style="background:${color(c)}"></span>${esc(c)} ${n} kg</li>`
+    ['Stock value', money(totalValue)],
+    ['Running low', lowStock]
+  ].map(([label, value]) =>
+    `<div><strong>${value}</strong><span>${label}</span></div>`
   ).join('');
 
-  // Table respects search + category filter
+  // CATEGORY BAR
+  const byCategory = {};
+
+  items.forEach((v) => {
+    byCategory[v.category] =
+      (byCategory[v.category] || 0) + Number(v.quantity);
+  });
+
+  const parts = Object.entries(byCategory)
+    .filter(([, quantity]) => quantity > 0);
+
+  $('#bar').innerHTML = parts.map(([category, quantity]) =>
+    `<i style="width:${totalStock ? quantity / totalStock * 100 : 0}%;background:${color(category)}"
+    title="${esc(category)}: ${quantity} kg"></i>`
+  ).join('');
+
+  $('#legend').innerHTML = parts.map(([category, quantity]) =>
+    `<li>
+      <span class="dot" style="background:${color(category)}"></span>
+      ${esc(category)} ${quantity} kg
+    </li>`
+  ).join('');
+
+  // SEARCH AND FILTER
   const q = $('#q').value.trim().toLowerCase();
-  const cat = $('#filter').value;
-  const rows = items.filter((v) => (!cat || v.category === cat) && v.name.toLowerCase().includes(q));
+  const category = $('#filter').value;
 
-  $('#rows').innerHTML = rows.length
-    ? rows.map((v) => `
+  const filtered = items.filter((v) =>
+    (!category || v.category === category) &&
+    v.name.toLowerCase().includes(q)
+  );
+
+  // TABLE
+  $('#rows').innerHTML = filtered.length
+
+    ? filtered.map((v) => `
       <tr>
-        <td><span class="dot" style="background:${color(v.category)}"></span>${esc(v.name)}</td>
-        <td>${esc(v.category)}</td>
-        <td class="num">${money(v.price)}</td>
-        <td class="num">${v.quantity} kg${v.quantity <= LOW_STOCK ? '<span class="low">Low</span>' : ''}</td>
-        <td class="act">
-          <button class="btn small" data-edit="${v.id}">Edit</button>
-          <button class="btn small danger" data-delete="${v.id}">Delete</button>
+        <td>
+          <span class="dot" style="background:${color(v.category)}"></span>
+          ${esc(v.name)}
         </td>
-      </tr>`).join('')
-    : '<tr><td colspan="5" class="empty">No vegetables match. Clear the search or add a new one.</td></tr>';
+
+        <td>${esc(v.category)}</td>
+
+        <td class="num">${money(v.price)}</td>
+
+        <td class="num">
+          ${v.quantity} kg
+          ${v.quantity <= LOW_STOCK
+            ? '<span class="low">Low</span>'
+            : ''}
+        </td>
+
+        <td class="act">
+          <button class="btn small" data-edit="${v.id}">
+            Edit
+          </button>
+
+          <button class="btn small danger" data-delete="${v.id}">
+            Delete
+          </button>
+        </td>
+      </tr>
+    `).join('')
+
+    : `<tr>
+        <td colspan="5" class="empty">
+          No vegetables match. Clear the search or add a new one.
+        </td>
+      </tr>`;
 }
 
-// READ: load everything from the server
-async function load() {
-  try { items = await api(API); render(); }
-  catch (e) { toast(e.message); }
-}
-
-// ----- Add / Edit dialog -----
+// ADD OR EDIT DIALOG
 const dlg = $('#dlg');
 const form = $('#form');
 
 function openDialog(veg) {
+
   editingId = veg ? veg.id : null;
+
   form.reset();
+
   $('#err').textContent = '';
-  $('#dlgTitle').textContent = veg ? 'Edit ' + veg.name : 'Add vegetable';
-  $('#saveBtn').textContent = veg ? 'Save changes' : 'Add vegetable';
+
+  $('#dlgTitle').textContent =
+    veg ? 'Edit ' + veg.name : 'Add vegetable';
+
+  $('#saveBtn').textContent =
+    veg ? 'Save changes' : 'Add vegetable';
+
   if (veg) {
-    form.name.value = veg.name;
-    form.category.value = veg.category;
-    form.price.value = veg.price;
-    form.quantity.value = veg.quantity;
+    form.elements.name.value = veg.name;
+    form.elements.category.value = veg.category;
+    form.elements.price.value = veg.price;
+    form.elements.quantity.value = veg.quantity;
   }
+
   dlg.showModal();
-  form.name.focus();
+
+  form.elements.name.focus();
 }
 
-// CREATE or UPDATE
-form.addEventListener('submit', async (e) => {
+// ADD AND UPDATE VEGETABLE
+form.addEventListener('submit', (e) => {
+
   e.preventDefault();
-  const body = JSON.stringify({
-    name: form.name.value,
-    category: form.category.value,
-    price: form.price.value,
-    quantity: form.quantity.value,
-  });
-  try {
-    const saved = editingId
-      ? await api(`${API}/${editingId}`, { method: 'PUT', body })
-      : await api(API, { method: 'POST', body });
-    dlg.close();
-    toast((editingId ? 'Saved ' : 'Added ') + saved.name);
-    load();
-  } catch (err) {
-    $('#err').textContent = err.message;
+
+  const name = form.elements.name.value.trim();
+  const category = form.elements.category.value;
+  const price = Number(form.elements.price.value);
+  const quantity = Number(form.elements.quantity.value);
+
+  // VALIDATION
+  if (!name) {
+    $('#err').textContent = 'Please enter a vegetable name.';
+    return;
   }
+
+  if (!Number.isFinite(price) || price < 0) {
+    $('#err').textContent = 'Price must be 0 or more.';
+    return;
+  }
+
+  if (!Number.isInteger(quantity) || quantity < 0) {
+    $('#err').textContent =
+      'Stock must be a whole number of 0 or more.';
+    return;
+  }
+
+  const vegetableData = {
+    name,
+    category,
+    price,
+    quantity
+  };
+
+  // UPDATE
+  if (editingId !== null) {
+
+    items = items.map((v) =>
+      v.id === editingId
+        ? { ...v, ...vegetableData }
+        : v
+    );
+
+  } else {
+
+    // CREATE
+    const nextId = items.length
+      ? Math.max(...items.map((v) => Number(v.id))) + 1
+      : 1;
+
+    items.push({
+      id: nextId,
+      ...vegetableData
+    });
+  }
+
+  saveItems();
+
+  dlg.close();
+
+  render();
+
+  toast(
+    (editingId !== null ? 'Saved ' : 'Added ') + name
+  );
+
+  editingId = null;
 });
 
-// ----- Button and input events -----
+// BUTTONS
 $('#addBtn').onclick = () => openDialog(null);
+
 $('#cancel').onclick = () => dlg.close();
+
+// SEARCH
 $('#q').oninput = render;
+
+// FILTER
 $('#filter').onchange = render;
 
-// Edit and Delete buttons inside the table
-$('#rows').addEventListener('click', async (e) => {
+// EDIT AND DELETE
+$('#rows').addEventListener('click', (e) => {
+
   const editId = e.target.dataset.edit;
-  const delId = e.target.dataset.delete;
+  const deleteId = e.target.dataset.delete;
 
-  if (editId) openDialog(items.find((v) => v.id == editId));
+  // EDIT
+  if (editId !== undefined) {
 
-  if (delId) {                                   // DELETE
-    const v = items.find((x) => x.id == delId);
-    if (!confirm(`Delete ${v.name}? This can’t be undone.`)) return;
-    try {
-      await api(`${API}/${delId}`, { method: 'DELETE' });
-      toast('Deleted ' + v.name);
-      load();
-    } catch (err) { toast(err.message); }
+    const veg = items.find(
+      (v) => v.id === Number(editId)
+    );
+
+    if (veg) openDialog(veg);
+  }
+
+  // DELETE
+  if (deleteId !== undefined) {
+
+    const veg = items.find(
+      (v) => v.id === Number(deleteId)
+    );
+
+    if (!veg) return;
+
+    if (!confirm(`Delete ${veg.name}? This can't be undone.`)) {
+      return;
+    }
+
+    items = items.filter(
+      (v) => v.id !== Number(deleteId)
+    );
+
+    saveItems();
+
+    render();
+
+    toast('Deleted ' + veg.name);
   }
 });
 
-// ----- Start -----
-const options = Object.keys(CATEGORIES).map((c) => `<option>${c}</option>`).join('');
-$('#filter').innerHTML = '<option value="">All categories</option>' + options;
-form.category.innerHTML = options;
-load();
+// INITIALIZE CATEGORY OPTIONS
+const options = Object.keys(CATEGORIES)
+  .map((c) => `<option value="${c}">${c}</option>`)
+  .join('');
+
+$('#filter').innerHTML =
+  '<option value="">All categories</option>' + options;
+
+form.elements.category.innerHTML = options;
+
+// INITIAL DISPLAY
+render();
