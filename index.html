@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vegetable stock</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <header class="top">
+    <div>
+      <h1>Vegetable stock</h1>
+      <p class="sub">What’s on the shelf, what it costs, and what’s running low.</p>
+    </div>
+    <button class="btn primary" id="addBtn">Add vegetable</button>
+  </header>
+
+  <section class="stats" id="stats" aria-label="Summary"></section>
+
+  <section class="mix" aria-label="Stock by category">
+    <h2>Stock by category</h2>
+    <div class="bar" id="bar"></div>
+    <ul class="legend" id="legend"></ul>
+  </section>
+
+  <div class="tools">
+    <input type="search" id="q" placeholder="Search vegetables" aria-label="Search vegetables">
+    <select id="filter" aria-label="Filter by category"></select>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th><th>Category</th>
+          <th class="num">Price per kg</th><th class="num">In stock</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</main>
+
+<!-- Add / Edit form -->
+<dialog id="dlg">
+  <form id="form">
+    <h2 id="dlgTitle">Add vegetable</h2>
+    <label>Name <input name="name" required maxlength="60" autocomplete="off"></label>
+    <label>Category <select name="category" required></select></label>
+    <div class="row">
+      <label>Price per kg ($) <input name="price" type="number" min="0" step="0.01" required></label>
+      <label>Stock (kg) <input name="quantity" type="number" min="0" step="1" required></label>
+    </div>
+    <p class="err" id="err" role="alert"></p>
+    <div class="actions">
+      <button type="button" class="btn" id="cancel">Cancel</button>
+      <button type="submit" class="btn primary" id="saveBtn">Add vegetable</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
